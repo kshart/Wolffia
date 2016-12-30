@@ -1,0 +1,7 @@
+
+RewriteEngine on
+RewriteCond %{SCRIPT_FILENAME} !-d
+RewriteCond %{SCRIPT_FILENAME} !-f
+RewriteRule ^(.*)$ /index.php?path=$1$2 [NC,L,QSA]
+
+#RewriteRule (.*) /index.php [NC,L]

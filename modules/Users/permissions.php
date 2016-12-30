@@ -1,0 +1,2 @@
+<?php
+$permissions = ['PM_USERS_CREATE_USER'=>'!','PM_USERS_DELETE_USER'=>'"','PM_USERS_CHANGE_USER'=>'#','PM_USERS_CHANGE_PERMISSION_ASSOC'=>'$',];
