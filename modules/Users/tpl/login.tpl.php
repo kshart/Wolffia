@@ -1,10 +1,15 @@
 <html>
 <body>
 	<div>
-		<h3>Авторизация</h3>
+		<h3>Авторизация 1</h3>
 		<input type="text" id="username"/>
 		<input type="password" id="password"/>
-		<button onclick="sendA();">Отправить</button>
+		<button onclick="send();">Отправить</button>
+	</div>
+	<div id="auth">
+		<h3>Авторизация 2</h3>
+		<input type="text" data-user-input="username"/>
+		<input type="password" data-user-input="password"/>
 	</div>
 	<div>
 		<h3>Создание аккаунта</h3>
@@ -13,59 +18,27 @@
 		<button onclick="createAccount();">Отправить</button>
 	</div>
 <?php 
+if (core\ModuleManager::getModule('Users')->userCheckPermission(['PM_ALL'])) {
 	$user = [];
 	$user['users'] = core\Database::query('SELECT * FROM user;');
 	$user['session'] = core\Database::query('SELECT * FROM session;');
 	foreach ($user['users'] as $key=>$value) {
-		echo '<div>'.$value->I.':'.$value->s.':'.$value->v.' '.'<a href="/?url='.$value->I.' class="btn btn-danger">Удалить</a></div>';
+		echo '<div>'.$value->I.':'.$value->s.':'.$value->v.' '.'<a href="/user/delete?username='.$value->I.'" class="btn btn-danger">Удалить</a></div>';
 	}
+	echo '<hr/>';
 	if ($user['session']!==false) foreach ($user['session'] as $key=>$value) {
 		echo '<div>'.$value->userID.':'.$value->agenthash.':'.$value->timeCreated.':'.$value->M.':'.$value->N.' '.'<a href="/?url='.$value->I.' class="btn btn-danger">Удалить</a></div>';
 	}
+}
 ?>
 	<script src="/js/BigInteger.js"></script>
 	<script src="/js/sha256.js"></script>
+	<script src="/js/jquery-3.1.0.js"></script>
+	<script src="/js/jquery.user.js"></script>
 	<script>
-	/*var U = "username", p = "username", s = "0",
-		N = bigInt("115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3", 16), g = bigInt(2),
-		k = bigInt(CryptoJS.SHA256(N.toString(16)+g.toString(16)).toString(), 16),
-		x = bigInt(CryptoJS.SHA256(s+CryptoJS.SHA256(U+":"+p)).toString(), 16),
-		v = g.modPow(x, N);
-	//console.log("x="+x.toString(16));
-	//console.log("v="+v.toString(16));
-
-	var a = bigInt.randBetween("0", "1e100"),
-		A = g.modPow(a, N);
-
-	//console.log("a="+a.toString(16));
-	//console.log("A="+A.toString(16));
-	var b = bigInt.randBetween("0", "1e100"),
-		B = ((k.multiply(v)).add(g.modPow(b, N))).mod(N);
-	//console.log("b="+b.toString(16));
-	//console.log("B="+B.toString(16));
-	//console.log((k.multiply(v)).toString(16));
-	//B=k*v + g^b % N
-	var u = bigInt(CryptoJS.SHA256(A.toString(16)+B.toString(16)).toString(), 16);
-	//console.log("u="+u.toString(16));
-	//x = H(s, p)
-	//S = (B - (k * g^x)) ^ (a + (u * x)) % N
-	//K = H(S)
-	var clientS = ((B.subtract(k.multiply(g.modPow(x, N))))).modPow(a.plus(u.multiply(x)), N),
-		clientK = bigInt(CryptoJS.SHA256(clientS.toString(16)).toString(), 16);
-	//console.log(clientK.toString(16));
-	var serverS = (A.multiply(v.modPow(u, N))).modPow(b, N),
-		serverK = bigInt(CryptoJS.SHA256(serverS.toString(16)).toString(), 16);
-	//console.log(serverK.toString(16));
-
-	var M = CryptoJS.SHA256(   bigInt(CryptoJS.SHA256(N.toString(16)), 16).xor(bigInt(CryptoJS.SHA256(g.toString(16)), 16)).toString(16)  + CryptoJS.SHA256(U) + s + A + B + clientK).toString();*/
-	//console.log(M);
-	//console.log(CryptoJS.SHA256(A.toString(16) + M + serverK.toString(16)).toString());
-	//M = H( H(N) XOR H(g), H(I), s, A, B, K)
-	// Calculate bx = g^x % N
-	// Calculate (B - k * bx + N * k ) % N
-	//var bx = this.g.modPow(x, this.N);
-	//var btmp = B.add(this.N.multiply(this.k)).subtract(bx.multiply(this.k)).mod(this.N);
-	
+	function send() {
+		$.user.auth(document.getElementById("username").value, document.getElementById("password").value);
+	}
 	function sendA() {
 		function H(str) {
 			return CryptoJS.SHA256(str).toString();
@@ -112,11 +85,12 @@
 				console.log("M="+M);
 				console.log("u="+u.toString(16));
 				console.log("clientS="+bintToHex(clientS)+"\nclientK="+bintToHex(clientK)+"\nB:"+B.toString(10));
+				document.cookie = "M="+M+";path=/;";
+				document.cookie = "U="+H(U+M)+";path=/;";
 				req.open("POST", "/user/auth");
 				req.onreadystatechange = secondStep;
 				req.send(M.toString());
-				document.cookie = "M="+M+";path=/;";
-				document.cookie = "U="+CryptoJS.SHA256(U+M).toString()+";path=/;";
+				console.log(U+M);
 			}
 		}
 		function secondStep () {
@@ -150,26 +124,12 @@
 			p = document.getElementById("CApassword").value,
 			N = bigInt("115B8B692E0E045692CF280B436735C77A5A9E8A9E7ED56C965F87DB5B2A2E9B", 16),
 			g = bigInt(2), s, x, v, sStr = 0, vStr, req = new XMLHttpRequest();
-		
 		do {
 			s = fitTo64( bintToHex(bigInt( H(bigInt.randBetween(N, "1e100").toString(16)) , 16).modPow(1, N)) );
 			x = bigInt( H(s+p), 16);
 			v = g.modPow(x, N);
 			vStr = v.toString(16);
 		} while(vStr.length !== 64);
-		console.log("x_="+(s+p));
-		console.log(U, p, N.toString(16), x.toString(16), s, vStr);
-		//mmmm
-		//U=hhhh
-		//p=hhhh
-		//N=115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2e9b
-		//x=76a717fe4a36428d84ed9d023fb9774806d55bd92335e090a283474546096901
-		//s=16f13df24616fc84453acb4a35306d25f031c0a20ed5a11b15fcc1f98b3380e0
-		//v=104b0820ac7d397e069baa9ae3abde3af67a2f77860ce4eb3bc7934b9c8988db
-		//p=hhhh
-		//v=104b0820ac7d397e069baa9ae3abde3af67a2f77860ce4eb3bc7934b9c8988db
-		//x=76a717fe4a36428d84ed9d023fb9774806d55bd92335e090a283474546096901
-		//s=16f13df24616fc84453acb4a35306d25f031c0a20ed5a11b15fcc1f98b3380e0
 		req.open("POST", "/user/create");
 		req.send(U+" "+s+vStr);
 	}
