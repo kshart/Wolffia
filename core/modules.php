@@ -46,8 +46,8 @@ namespace core {
 			}else{
 				try {
 					include_once('modules/'.$moduleName.'/'.$moduleName.'.php');
-					if (!\class_exists($moduleName)) throw new Exception($moduleName.' undefined class.');
-					if ($moduleName instanceof Module) throw new Exception($moduleName.' class is not extends Module.');
+					if (!\class_exists($moduleName)) throw new \Exception($moduleName.' undefined class.');
+					if ($moduleName instanceof Module) throw new \Exception($moduleName.' class is not extends Module.');
 					$moduleObject = new $moduleName();
 					self::$modules[$moduleName] = $moduleObject;
 					Log::info('Модуль '.$moduleName.' загружен.');
@@ -80,6 +80,7 @@ namespace core {
 				$res = Database::query('SELECT count(id) as count FROM modules WHERE name=%s;', $moduleName);
 				if ($res[0]->count < 1) throw new \Exception($moduleName.' not installed.');
 				$moduleObject = self::getModule($moduleName);
+				if ($moduleObject===null) return;
 				$moduleObject->uninstall();
 				for($key=0, $length=\count(self::$modules); $key<$length; ++$key) {
 					if (\get_class(self::$modules[$key]) === $moduleName) {
@@ -93,6 +94,19 @@ namespace core {
 			}catch (\Exception $ex) {
 				Log::error($ex->getFile().':'.$ex->getLine().' MODULE_UNINSTALL_FAILED '.$ex->getMessage());
 			}
+		}
+		
+		static public function addEventListener($path, $moduleName, $listener, $equal=true, $options=NULL) {
+			
+		}
+		static public function hasEventListener($type) {
+			
+		}
+		static public function removeEventListener($path, $moduleName, $listener, $equal=true) {
+			
+		}
+		static public function willTrigger($type) {
+			
 		}
 	}
 	

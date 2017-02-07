@@ -1,5 +1,11 @@
 <?php
+use core\Connect;
+
 class Users extends core\Module {
+	const MIN_USERNAME_LENGTH = 6;
+	const MAX_USERNAME_LENGTH = 32;
+	const V_LENGTH = 64;
+	const S_LENGTH = 64;
 	private $username = null;
 	private $userID = null;
 	private $permission = '';
@@ -8,7 +14,13 @@ class Users extends core\Module {
 		$this->name = 'standart/Users';
 		$this->description = 'Модуль для работы с пользователями и их ограничениями.';
 		$this->version = '0.1a';
-		include 'permissions.php';
+		$this->adminPanel = 'tpl/admin.tpl.php';
+		try {
+			include 'permissions.php';
+		}catch (Exception $exc) {
+			unlink(__DIR__.'/permissions.php');
+			echo $exc->getTraceAsString();
+		}
 		$this->permissionAssociative = array_merge($this->permissionAssociative, $permissions);
 	}
 	public function install() {
@@ -24,15 +36,14 @@ CREATE TABLE user (
 )
 CREATE TABLE session (
 	userID int UNSIGNED NOT NULL,
+	Ihash char(64) NOT NULL,
 	agenthash char(64) NOT NULL,
 	timeCreated timestamp NOT NULL,
-	status ENUM('value1','value2') NOT NULL,
+	status ENUM('valid','auth') NOT NULL,
 	M char(65) NOT NULL,
-	N char(65) NOT NULL,
+	R char(65) NOT NULL,
 	Primary key(userID, agenthash),
 	Foreign key(userID) references user(id) on update cascade on delete cascade
-
-
 )
 
 g = 2
@@ -42,30 +53,35 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 
 */
 		core\Database::query('CREATE TABLE user (id int UNSIGNED AUTO_INCREMENT,I varchar(32) NOT NULL,s char(64) NOT NULL,v char(65) NOT NULL,permission varchar(32),Primary key(id));');
-		core\Database::query('CREATE TABLE session (userID int UNSIGNED NOT NULL,Ihash varchar(64) NOT NULL,agenthash char(64) NOT NULL,timeCreated timestamp NOT NULL,M char(65) NOT NULL,N char(65) NOT NULL,Primary key(userID, agenthash),Foreign key(userID) references user(id) on update cascade on delete cascade);');
+		core\Database::query('CREATE TABLE session (userID int UNSIGNED NOT NULL,Ihash varchar(64) NOT NULL,agenthash char(64) NOT NULL,timeCreated timestamp NOT NULL, status ENUM("valid","auth") NOT NULL,M char(65) NOT NULL,R char(65) NOT NULL,Primary key(userID, agenthash),Foreign key(userID) references user(id) on update cascade on delete cascade);');
 		core\PathManager::addEventListener('user', 'Users', 'mainDispatcher', false);
-		$this->permissionsRegistrate(['PM_USERS_CREATE_USER', 'PM_USERS_DELETE_USER', 'PM_USERS_CHANGE_USER', 'PM_USERS_CHANGE_PERMISSION_ASSOC']);
+		$this->permissionsRegistrate(['PM_USERS_CREATE_USER', 'PM_USERS_DELETE_USER', 'PM_USERS_GET_LIST', 'PM_USERS_CHANGE_USER', 'PM_USERS_CHANGE_PERMISSION_ASSOC']);
 		//core\Database::query('INSERT INTO user (I, s char(64) NOT NULL,v char(65) NOT NULL,permission);');
 	}
 	public function uninstall() {
+		unlink(__DIR__.'/permissions.php');
 		core\Database::query('DROP TABLE session;');
 		core\Database::query('DROP TABLE user;');
 		core\PathManager::removeEventListener('user', 'Users', 'mainDispatcher', false);
 	}
 	private function detectUser() {
-		$U = filter_input(INPUT_COOKIE, 'U', FILTER_SANITIZE_SPECIAL_CHARS);
-		$M = filter_input(INPUT_COOKIE, 'M', FILTER_SANITIZE_SPECIAL_CHARS);
-		if (strlen($U)<64&&strlen($M)<64) return;
-		$userAgentHash = hash('sha256', filter_input(INPUT_SERVER, 'HTTP_USER_AGENT', FILTER_SANITIZE_SPECIAL_CHARS));
-		$userID = core\Database::query('SELECT userID, I, permission FROM session WHERE Ihash=$s AND M=$s AND agenthash=$s LIMIT 1', $U, $M, $userAgentHash);
-		if ($userID === false) return;
-		$this->userID = $userID->userID;
-		$this->username = $userID->I;
-		$this->permission = $userID->permission;
-	}
-	private function fitTo64($str) {
-		if (strlen($str)<64) $str = str_repeat('0', 64-strlen($str)).$str;
-		return $str;
+		$userEmpty = core\Database::query('SELECT id FROM user LIMIT 1');
+		if ($userEmpty!==false&&count($userEmpty)===1) {
+			$U = filter_input(INPUT_COOKIE, 'U', FILTER_SANITIZE_SPECIAL_CHARS);
+			$M = filter_input(INPUT_COOKIE, 'M', FILTER_SANITIZE_SPECIAL_CHARS);
+			if (strlen($U)<64&&strlen($M)<64) return;
+			$userAgentHash = hash('sha256', filter_input(INPUT_SERVER, 'HTTP_USER_AGENT', FILTER_SANITIZE_SPECIAL_CHARS));
+			$userID = core\Database::query('SELECT userID, I, permission FROM session JOIN user ON session.userID=user.id WHERE status="valid" AND Ihash=%s AND M=%s AND agenthash=%s LIMIT 1', $U, $M, $userAgentHash);
+			if ($userID === false) return;
+			$this->userID = $userID[0]->userID;
+			$this->username = $userID[0]->I;
+			$this->permission = $userID[0]->permission;
+		}else{
+			$this->userID = -1;
+			$this->username = 'root';
+			$this->permission = $this->permissionAssociative['PM_ALL'];
+		}
+		
 	}
 	private function bintToHex($b) {
 		$str = $b->toHex();
@@ -75,7 +91,6 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 	
 	
 	public function mainDispatcher($event) {
-		$NLength = 65;
 		$event->end = true;
 		switch($event->overURL) {
 			case '/':
@@ -85,23 +100,64 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 				return;
 			case '/create':
 				if (!$this->userCheckPermission(['PM_USERS_CREATE_USER'])) {
-					//core\Log::error('Users::userCreate У тебя нет прав, Добби;');
-					//return false;
+					core\Log::error('Users::userCreate У тебя нет прав, Добби;');
+					header('HTTP/1.1 400 Bad Request');
+					return false;
 				}
 				$accountData = file_get_contents('php://input', '', NULL, 0, 161);//32+1+64+64 length username + space + salt + v
 				$spacePos = strpos($accountData, ' ');
 				$username = substr($accountData, 0, $spacePos);
 				$str = substr($accountData, $spacePos+1, 128);
-				if (strlen($username)>32 ||
+				if (strlen($username)>self::MAX_USERNAME_LENGTH ||
+					strlen($username)<self::MIN_USERNAME_LENGTH ||
 					strlen($str)!=128 ||
 					filter_var($username, FILTER_VALIDATE_REGEXP, array('options'=>array('regexp'=>'/^\D[a-zA-Z\d]*$/')))===false ) {
-					echo 'unconditional input';
+					header('HTTP/1.1 400 Bad Request');
 					return;
 				}
 				$salt = substr($str, 0, 64);
 				$vstr = substr($str, 64, 64);
 				$result = $this->userCreate($username, $salt, $vstr);
 				return $result;
+			case '/delete':
+				if (!$this->userCheckPermission(['PM_USERS_DELETE_USER'])) {
+					core\Log::error('Users::userDelete У тебя нет прав, Добби;');
+					header('HTTP/1.1 400 Bad Request');
+					return false;
+				}
+				$username = file_get_contents('php://input', '', NULL, 0, self::MAX_USERNAME_LENGTH);
+				if (strlen($username)<self::MIN_USERNAME_LENGTH ||
+					filter_var($username, FILTER_VALIDATE_REGEXP, array('options'=>array('regexp'=>'/^\D[a-zA-Z\d]*$/')))===false ) {
+					header('HTTP/1.1 400 Bad Request');
+					return;
+				}
+				$result = $this->userDelete($username);
+				if ($result===false) header('HTTP/1.1 400 Bad Request');
+				return;
+			case '/list':
+				if (!$this->userCheckPermission(['PM_USERS_GET_LIST'])) {
+					core\Log::error('Users::userDelete У тебя нет прав, Добби;');
+					header('HTTP/1.1 400 Bad Request');
+					return false;
+				}
+				$limit = file_get_contents('php://input', '', NULL, 0, 64);
+				$spacePos = strpos($limit, ' ');
+				if ($limit==='') {
+					$users = core\Database::query('SELECT I, permission FROM user;');
+					echo json_encode($users);
+					return;
+				}else if ($spacePos===false) {
+					$users = core\Database::query('SELECT I, permission FROM user LIMIT %i;', $limit);
+					echo json_encode($users);
+					return;
+				}else{
+					$startPos = substr($limit, 0, $spacePos);
+					$endPos = substr($limit, $spacePos+1);
+					$users = core\Database::query('SELECT I, permission FROM user LIMIT %i..%i;', $startPos, $endPos);
+					echo json_encode($users);
+					return;
+				}
+				return;
 			case '/auth':
 				$loginData = file_get_contents('php://input', '', NULL, 0, 97);//32+1+64 length username + space + A
 				$spacePos = strpos($loginData, ' ');
@@ -116,7 +172,7 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 						echo 'unconditional input';
 						return;
 					}
-					$user = core\Database::query('SELECT id, s, v FROM user WHERE I=%s;', $login);
+					$user = core\Database::query('SELECT id, s, v, I FROM user WHERE I=%s;', $login);
 					if ($user === false || count($user) < 1) return;
 					
 					include_once '/core/BigInteger.php';
@@ -149,10 +205,9 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 					$serverM = hash('sha256', 'f88bd56f4a0b34ffe63bc124ecd5a1943de0a2f2145f392e2a24e7ac114289b8'.hash('sha256', $login).$s.self::bintToHex($A).self::bintToHex($B).$serverK );
 					$serverN = hash('sha256', $A->toString().$serverM.$serverK);
 					$Ihash = hash('sha256', $user[0]->I.$serverM);
-					core\Database::query('INSERT INTO session(userID, M, N, agenthash, Ihash) VALUES(%i, %s, %s, %s, %s)', $userID, $serverM, $serverN, $userAgentHash, $Ihash);
+					core\Database::query('INSERT INTO session(userID, M, R, agenthash, Ihash, status) VALUES(%i, %s, %s, %s, %s, "auth")', $userID, $serverM, $serverN, $userAgentHash, $Ihash);
 					header('$u: '.$u->toHex());
 					header('$b: '.$b->toHex());
-					header('$serverK: '.$serverK);
 					header('$serverM: '.$serverM);
 					echo $s.' '.self::bintToHex($B);
 					//H(A, M, K);
@@ -161,11 +216,13 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 				}else{
 					//save session
 					//req M
-					if ( strlen($loginData)>$NLength ) return;
-					include_once '/core/BigInteger.php';
-					$M = new Math_BigInteger($loginData, 16);
-					$userAgentHash = hash('sha256', $_SERVER['HTTP_USER_AGENT']);
+					$data = file_get_contents('php://input', '', NULL, 0, 128);
 					
+					if (strlen($data)!==128) return;
+					$U = substr($data, 0, 64);
+					$M = substr($data, 64);
+					$userAgentHash = hash('sha256', filter_input(INPUT_SERVER, 'HTTP_USER_AGENT', FILTER_SANITIZE_SPECIAL_CHARS));
+					$userID = core\Database::query('UPDATE session SET status="valid" WHERE status="auth" AND Ihash=%s AND M=%s AND agenthash=%s', $U, $M, $userAgentHash);
 				}
 				break;
 			case '/logout':
@@ -181,7 +238,6 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 	
 	public function userCheckPermission($permissions, $username=null) {
 		$perm = '';
-		return true;
 		foreach($permissions as $key=>$value) {
 			if (isset($this->permissionAssociative[$value])) {
 				$perm .= $this->permissionAssociative[$value];
@@ -191,16 +247,26 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 			}
 		}
 		if (strlen($perm)<=0) return false;
-		
 		if ($username === null) {
 			if ($this->userID === null) $this->detectUser();
 			if ($this->userID === null) return false;
+			if (strpos($this->permission, $this->permissionAssociative['PM_ALL']) !== false) return true;
 			for($i=0, $len=strlen($perm); $i<$len; $i++) {
 				$p = substr($perm, $i, 1);
 				if (strpos($this->permission, $p) === false) return false;
 			}
 		}else{
-			core\Log::error('Users::userCheckPermission;');
+			$user = core\Database::query('SELECT id, permission as count FROM user WHERE I=%s LIMIT 1;', $username);
+			if ($user===false || count($user)<1) {
+				core\Log::error('Users::userCheckPermission "'.$username.'" такого пользователя нет ;');
+				return false;
+			} 
+			if (strpos($user[0]->permission, $this->permissionAssociative['PM_ALL']) !== false) return true;
+			for($i=0, $len=strlen($perm); $i<$len; $i++) {
+				$p = substr($perm, $i, 1);
+				if ($p===$this->permissionAssociative['PM_ALL']) return true;
+				if (strpos($user[0]->permission, $p) === false) return false;
+			}
 		}
 		return true;
 	}
@@ -211,14 +277,36 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 			core\Log::error('Users::userCreate У тебя нет прав, Добби;');
 			return false;
 		}
+		if (strlen($username)<self::MIN_USERNAME_LENGTH || strlen($username)>self::MAX_USERNAME_LENGTH) {
+			core\Log::error('Users::userCreate длина логина;');
+			return false;
+		}
+		if (strlen($s)!==self::S_LENGTH || strlen($v)!==self::V_LENGTH) {
+			core\Log::error('Users::userCreate длина s, v;');
+			return false;
+		}
 		$user = core\Database::query('SELECT count(id)>0 as count FROM user WHERE I=%s LIMIT 1;', $username);
-		var_dump($user);
 		if ($user === false || $user[0]->count==true) {
-			var_dump($user);
 			core\Log::error('Users::userCreate Ты уже есть "'.$username.'";');
 			return false;
 		}
-		core\Database::query('INSERT INTO user(I, s, v) values(%s, %s, %s);', $username, $s, $v);
+		$newPerm = '';
+		foreach($permission as $key=>$value) {
+			if (isset($this->permissionAssociative[$value])) {
+				$newPerm .= $this->permissionAssociative[$value];
+			}else{
+				core\Log::error('Users::addPermissions ХУЕВЫЕ Premissions "'.$value.'";');
+			}
+		}
+		core\Database::query('INSERT INTO user(I, s, v, permission) values(%s, %s, %s, %s);', $username, $s, $v, $newPerm);
+		return true;
+	}
+	public function userDelete($username) {
+		if (!$this->userCheckPermission(['PM_USERS_DELETE_USER'])) {
+			core\Log::error('Users::userDelete У тебя нет прав, Добби;');
+			return false;
+		}
+		core\Database::query('DELETE FROM user WHERE I=%s;', $username);
 		return true;
 	}
 	
@@ -278,7 +366,6 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 		$perm = '';
 		for($i=0, $len=strlen($user[0]->permission); $i<$len; $i++) {
 			$p = substr($user[0]->permission, $i, 1);
-			var_dump($p);
 			if (strpos($deletePerm, $p) === false && strpos($perm, $p) === false) $perm .= $p;
 		}
 		core\Database::query('UPDATE user SET permission=%s WHERE id=%i;', $perm, $user[0]->id);
@@ -301,7 +388,8 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 		$file = fopen(__DIR__.'/permissions.php', 'w', true);
 		fprintf($file, "<?php\n\$permissions = [");
 		foreach($this->permissionAssociative as $key=>$value) {
-			fprintf($file, "'$key'=>'$value',");
+			if ($value==='%') $value = '%%';
+			fprintf($file, '\''.$key.'\'=>\''.$value.'\',');
 		}
 		fprintf($file, '];');
 		fclose($file);

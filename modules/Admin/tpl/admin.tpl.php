@@ -8,7 +8,7 @@
 <meta http-equiv="X-UA-Compatible">
 <meta name="viewport" content="width=device-width">
 <title>Панель Администрирования</title>
-<link href="/css/bootstrap.css" rel="stylesheet">
+<link href="/css/bootstrap.min.css" rel="stylesheet">
 <style>
 .sidebar {
 	padding:0;
@@ -202,7 +202,11 @@
 	for(var i=0; i<moduleList.length; i++) {
 		
 		var obj = {t:"li", "class":"item", onClick:function (e) {
-				console.log( moduleList[$(this).attr("data-value")] );
+				var that = this;
+				$.post("/admin/module", moduleList[$(this).attr("data-value")].class, function (data, textStatus, jqXHR) {
+					$("#content").html(data);
+				});
+				console.log( moduleList[$(this).attr("data-value")].name );
 			}, attr:{"data-value":i}, child:[
 			{t:"p", "class":"item-first", text:moduleList[i].name},
 			{t:"p", "class":"item-second", text:"Версия: "+moduleList[i].version},

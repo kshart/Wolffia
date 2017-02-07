@@ -14,28 +14,32 @@ class Admin extends core\Module {
 		
 	}
 	public function mainDispatcher($event) {
+		if (!core\ModuleManager::getModule('Users')->userCheckPermission(['PM_ALL'])) return;
 		$event->end = true;
 		switch ($event->overURL) {
+			case '/module':
+				$moduleName = file_get_contents('php://input', '', NULL, 0, 128);
+				$module = core\ModuleManager::getModule($moduleName);
+				if (isset($module) && isset($module->adminPanel)) {
+					include($_SERVER['DOCUMENT_ROOT']."/modules/".$moduleName.'/'.$module->adminPanel);
+				}
+				return;
 			case '/uninstallModule':
 				
 				$name = Connect::getResource('name', Connect::A09_STR, Connect::GET);
-				var_dump($name);//core.Module.UserData
-				$name = filter_input(INPUT_GET, 'name', FILTER_SANITIZE_STRING);
 				core\ModuleManager::uninstall($name);
 				header('Location: /admin');
 				break;
 			case '/installModule':
-				$name = filter_input(INPUT_GET, 'name', FILTER_SANITIZE_STRING);
+				$name = Connect::getResource('name', Connect::A09_STR, Connect::GET);
 				core\ModuleManager::install($name);
-				echo $name;
 				header('Location: /admin');
 				break;
 			case '/reinstallModule':
-				$name = filter_input(INPUT_GET, 'name', FILTER_SANITIZE_STRING);
+				$name = Connect::getResource('name', Connect::A09_STR, Connect::GET);
 				core\ModuleManager::uninstall($name);
 				core\ModuleManager::install($name);
 				header('Location: /admin');
-				echo $name;
 				break;
 			case '/registratePage':
 				$url = filter_input(INPUT_GET, 'url', FILTER_SANITIZE_STRING);

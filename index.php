@@ -31,6 +31,8 @@ class ResponseLine extends core\EventDispatcher {
 	function start() {
 		core\ModuleManager::load();
 		//core\ModuleManager::install('Admin');
+		//core\ModuleManager::install('Users');
+		//core\ModuleManager::install('FlyBread');
 		//core\PathManager::addEventListener('admin', 'PageBuilder', 'adminPages', false);
 		$event = new core\Event('onload');
 		$this->dispatchEvent($event);
