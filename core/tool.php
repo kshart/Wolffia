@@ -4,9 +4,9 @@ namespace core {
 	class ServerConfig {
 		const dbConnect = 'mysql';
 		const dbConnectHost = 'localhost';
-		const dbConnectUser = 'k24078_dbuser';
-		const dbConnectPassword = 'eV!.u^_0i#aU';
-		const dbConnectDatabase = 'k24078_db';
+		const dbConnectUser = 'root';
+		const dbConnectPassword = '';
+		const dbConnectDatabase = 'main';
 		const dbConnectCharset = 'utf8';
 
 	}
