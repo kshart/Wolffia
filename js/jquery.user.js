@@ -33,25 +33,23 @@
 			A = g.modPow(a, N);
 			aStr = fitTo64left(A.toString(16));
 			$.post("/user/auth", U+" "+aStr, function (data, textStatus, jqXHR) {
-				if (textStatus==="success") {
-					var s, B, spacePos, u, x, clientS, clientK, M;
-					spacePos = data.indexOf(' ');
-					if (spacePos < 0) return;
-					s = bigInt(data.substr(0, spacePos), 16);
-					B = bigInt(data.substr(spacePos+1), 16);
-					u = bigInt( H(bintToHex(A)+bintToHex(B)), 16);
-					x = bigInt( H(bintToHex(s)+p), 16);
-					clientS = (B.subtract(k.multiply(g.modPow(x, N)))).modPow(a.plus(u.multiply(x)), N);
-					clientK = bigInt( H(bintToHex(clientS)), 16);
-					M = H("f88bd56f4a0b34ffe63bc124ecd5a1943de0a2f2145f392e2a24e7ac114289b8" + H(U) + bintToHex(s) + bintToHex(A) + bintToHex(B) + bintToHex(clientK));
-					$.post("/user/auth", H(U+M)+M, function (data, textStatus, jqXHR) {
-						if (textStatus==="success") {
-							console.log("serverS="+data, U, M);
-							document.cookie = "M="+M+";path=/;EXPIRES=Sun Jan 01 2090 05:00:00 GMT+0500";
-							document.cookie = "U="+H(U+M)+";path=/;EXPIRES=Sun Jan 01 2090 05:00:00 GMT+0500";
-						}
-					});
-				}
+				var s, B, spacePos, u, x, clientS, clientK, M;
+				spacePos = data.indexOf(' ');
+				if (spacePos < 0) return;
+				s = bigInt(data.substr(0, spacePos), 16);
+				B = bigInt(data.substr(spacePos+1), 16);
+				u = bigInt( H(bintToHex(A)+bintToHex(B)), 16);
+				x = bigInt( H(bintToHex(s)+p), 16);
+				clientS = (B.subtract(k.multiply(g.modPow(x, N)))).modPow(a.plus(u.multiply(x)), N);
+				clientK = bigInt( H(bintToHex(clientS)), 16);
+				M = H("f88bd56f4a0b34ffe63bc124ecd5a1943de0a2f2145f392e2a24e7ac114289b8" + H(U) + bintToHex(s) + bintToHex(A) + bintToHex(B) + bintToHex(clientK));
+				$.post("/user/auth", H(U+M)+M, function (data, textStatus, jqXHR) {
+					if (textStatus==="success") {
+						console.log("serverS="+data, U, M);
+						document.cookie = "M="+M+";path=/;EXPIRES=Sun Jan 01 2090 05:00:00 GMT+0500";
+						document.cookie = "U="+H(U+M)+";path=/;EXPIRES=Sun Jan 01 2090 05:00:00 GMT+0500";
+					}
+				});
 			}).fail(function() {
 				alert( "error" );
 			});
@@ -66,34 +64,26 @@
 			A = g.modPow(a, N);
 			aStr = fitTo64left(A.toString(16));
 			$.post("/user/auth", U+" "+aStr, function (data, textStatus, jqXHR) {
-				if (textStatus==="success") {
-					var s, B, spacePos, u, x, clientS, clientK, M;
-					spacePos = data.indexOf(' ');
-					if (spacePos < 0) return;
-					s = bigInt(data.substr(0, spacePos), 16);
-					B = bigInt(data.substr(spacePos+1), 16);
-					u = bigInt( H(bintToHex(A)+bintToHex(B)), 16);
-					x = bigInt( H(bintToHex(s)+p), 16);
-					clientS = (B.subtract(k.multiply(g.modPow(x, N)))).modPow(a.plus(u.multiply(x)), N);
-					clientK = bigInt( H(bintToHex(clientS)), 16);
-					M = H("f88bd56f4a0b34ffe63bc124ecd5a1943de0a2f2145f392e2a24e7ac114289b8" + H(U) + bintToHex(s) + bintToHex(A) + bintToHex(B) + bintToHex(clientK));
-					$.post("/user/auth", H(U+M)+M, function (data, textStatus, jqXHR) {
-						if (textStatus==="success") {
-							console.log("serverS="+data, U, M);
-							document.cookie = "M="+M+";path=/;";
-							document.cookie = "U="+H(U+M)+";path=/;";
-						}
-					});
-				}
+				var s, B, spacePos, u, x, clientS, clientK, M;
+				spacePos = data.indexOf(' ');
+				if (spacePos < 0) return;
+				s = bigInt(data.substr(0, spacePos), 16);
+				B = bigInt(data.substr(spacePos+1), 16);
+				u = bigInt( H(bintToHex(A)+bintToHex(B)), 16);
+				x = bigInt( H(bintToHex(s)+p), 16);
+				clientS = (B.subtract(k.multiply(g.modPow(x, N)))).modPow(a.plus(u.multiply(x)), N);
+				clientK = bigInt( H(bintToHex(clientS)), 16);
+				M = H("f88bd56f4a0b34ffe63bc124ecd5a1943de0a2f2145f392e2a24e7ac114289b8" + H(U) + bintToHex(s) + bintToHex(A) + bintToHex(B) + bintToHex(clientK));
+				$.post("/user/auth", H(U+M)+M, function (data, textStatus, jqXHR) {
+					if (textStatus==="success") {
+						console.log("serverS="+data, U, M);
+						document.cookie = "M="+M+";path=/;";
+						document.cookie = "U="+H(U+M)+";path=/;";
+					}
+				});
 			}).fail(function() {
 				alert( "error" );
 			});
 		},
-	};
-	$.fn.user = function (option) {
-		if (typeof option !== "object" || option==undefined) return;
-		var element = getElement(option);
-		this[0].appendChild(element);
-		return element;
 	};
 })(jQuery, window, document);

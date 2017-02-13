@@ -6,6 +6,9 @@ class Users extends core\Module {
 	const MAX_USERNAME_LENGTH = 32;
 	const V_LENGTH = 64;
 	const S_LENGTH = 64;
+	const ATH_2ROUND_REQUEST_LENGTH = 128;
+	const ATH_2ROUND_U_LENGTH = 64;
+	const ATH_2ROUND_M_LENGTH = 64;
 	private $username = null;
 	private $userID = null;
 	private $permission = '';
@@ -42,7 +45,6 @@ CREATE TABLE session (
 	status ENUM('valid','auth') NOT NULL,
 	M char(65) NOT NULL,
 	R char(65) NOT NULL,
-	Primary key(userID, agenthash),
 	Foreign key(userID) references user(id) on update cascade on delete cascade
 )
 
@@ -53,7 +55,7 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 
 */
 		core\Database::query('CREATE TABLE user (id int UNSIGNED AUTO_INCREMENT,I varchar(32) NOT NULL,s char(64) NOT NULL,v char(65) NOT NULL,permission varchar(32),Primary key(id));');
-		core\Database::query('CREATE TABLE session (userID int UNSIGNED NOT NULL,Ihash varchar(64) NOT NULL,agenthash char(64) NOT NULL,timeCreated timestamp NOT NULL, status ENUM("valid","auth") NOT NULL,M char(65) NOT NULL,R char(65) NOT NULL,Primary key(userID, agenthash),Foreign key(userID) references user(id) on update cascade on delete cascade);');
+		core\Database::query('CREATE TABLE session (userID int UNSIGNED NOT NULL,Ihash varchar(64) NOT NULL,agenthash char(64) NOT NULL,timeCreated timestamp NOT NULL, status ENUM("valid","auth") NOT NULL,M char(65) NOT NULL,R char(65) NOT NULL,Foreign key(userID) references user(id) on update cascade on delete cascade);');
 		core\PathManager::addEventListener('user', 'Users', 'mainDispatcher', false);
 		$this->permissionsRegistrate(['PM_USERS_CREATE_USER', 'PM_USERS_DELETE_USER', 'PM_USERS_GET_LIST', 'PM_USERS_CHANGE_USER', 'PM_USERS_CHANGE_PERMISSION_ASSOC']);
 		//core\Database::query('INSERT INTO user (I, s char(64) NOT NULL,v char(65) NOT NULL,permission);');
@@ -205,10 +207,12 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 					$serverM = hash('sha256', 'f88bd56f4a0b34ffe63bc124ecd5a1943de0a2f2145f392e2a24e7ac114289b8'.hash('sha256', $login).$s.self::bintToHex($A).self::bintToHex($B).$serverK );
 					$serverN = hash('sha256', $A->toString().$serverM.$serverK);
 					$Ihash = hash('sha256', $user[0]->I.$serverM);
-					core\Database::query('INSERT INTO session(userID, M, R, agenthash, Ihash, status) VALUES(%i, %s, %s, %s, %s, "auth")', $userID, $serverM, $serverN, $userAgentHash, $Ihash);
-					header('$u: '.$u->toHex());
-					header('$b: '.$b->toHex());
-					header('$serverM: '.$serverM);
+					$reqEmptySession = core\Database::query('SELECT userID FROM session WHERE userID=%s AND agenthash=%s LIMIT 1', $userID, $userAgentHash);
+					if (count($reqEmptySession)>0) {
+						core\Database::query('UPDATE session SET Ihash=%s, M=%s, R=%s, timeCreated=now(), status="valid" WHERE userID=%i AND agenthash=%s', $Ihash, $serverM, $serverN, $userID, $userAgentHash);
+					}else{
+						core\Database::query('INSERT INTO session(userID, M, R, agenthash, Ihash, status) VALUES(%i, %s, %s, %s, %s, "auth")', $userID, $serverM, $serverN, $userAgentHash, $Ihash);
+					}
 					echo $s.' '.self::bintToHex($B);
 					//H(A, M, K);
 					//var b = bigInt.randBetween("0", "1e100"),
@@ -216,19 +220,20 @@ N = 115b8b692e0e045692cf280b436735c77a5a9e8a9e7ed56c965f87db5b2a2ece3
 				}else{
 					//save session
 					//req M
-					$data = file_get_contents('php://input', '', NULL, 0, 128);
+					$data = file_get_contents('php://input', '', NULL, 0, self::ATH_2ROUND_REQUEST_LENGTH);
 					
-					if (strlen($data)!==128) return;
-					$U = substr($data, 0, 64);
-					$M = substr($data, 64);
+					if (strlen($data)!==self::ATH_2ROUND_REQUEST_LENGTH) return;
+					$U = substr($data, 0, self::ATH_2ROUND_U_LENGTH);
+					$M = substr($data, self::ATH_2ROUND_U_LENGTH);
 					$userAgentHash = hash('sha256', filter_input(INPUT_SERVER, 'HTTP_USER_AGENT', FILTER_SANITIZE_SPECIAL_CHARS));
 					$userID = core\Database::query('UPDATE session SET status="valid" WHERE status="auth" AND Ihash=%s AND M=%s AND agenthash=%s', $U, $M, $userAgentHash);
 				}
 				break;
 			case '/logout':
-				//$this->permissionsRegistrate(['PM_USERS_CREATE_USER', 'PM_USERS_DELETE_USER', 'PM_USERS_CHANGE_USER', 'PM_USERS_CHANGE_PERMISSION_ASSOC']);
-				//$this->addPermissions('dddd', ['PM_USERS_CREATE_USER', 'PM_USERS_DELETE_USER']);
-				//$this->deletePermissions('dddd', ['PM_USERS_DELETE_USER']);
+				$U = core\Connect::getResource('U', core\Connect::A09_STR, core\Connect::COOKIES);
+				$M = core\Connect::getResource('M', core\Connect::A09_STR, core\Connect::COOKIES);
+				$userAgentHash = hash('sha256', filter_input(INPUT_SERVER, 'HTTP_USER_AGENT', FILTER_SANITIZE_SPECIAL_CHARS));
+				$userID = core\Database::query('DELETE FROM session WHERE Ihash=%s AND M=%s AND agenthash=%s', $U, $M, $userAgentHash);
 				break;
 			default:
 		}

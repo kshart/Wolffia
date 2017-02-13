@@ -26,6 +26,24 @@ namespace core {
 
 			}
 		}
+		/**
+		* (PHP 4, PHP 5, PHP 7)<br/>
+		* Sql query a formatted string
+		* @param string $sql <p>
+		* The sql query is composed of zero or more directives:
+		* ordinary characters (excluding %) that are
+		* copied directly to the result, and conversion
+		* specifications, each of which results in fetching its
+		* own parameter.
+		* </p>
+		* <p>
+		* Each conversion specification consists of a percent sign
+		* (%), followed by one or more of these
+		* elements, in order:
+		* </p>
+		* @param mixed $args [optional]
+		* @return mixed false at invalid query, integer at INSERT AUTO_INCREMENT, array at success query.
+		*/
 		public static function query($sql) {
 			if (!is_string($sql)) return false;
 			
@@ -94,7 +112,7 @@ namespace core {
 						$pos = $posTo+3;
 						break;
 					default:
-						$value = '%';
+						$resultSQL .= '%';
 						$pos = $posTo+1;
 				}
 				$posTo = strpos($sql, '%', $pos);
@@ -223,11 +241,13 @@ namespace core {
 	class Connect {
 		const POST = 'post';
 		const GET = 'get';
+		const COOKIES = 'cookies';
 		const A09_STR = 1;
 		const URL = 2;
 		const INT = 3;
 		const FLOAT = 4;
-		const JSON_OBJ = 5;
+		const BOOLEAN = 5;
+		const JSON_OBJ = 6;
 		public static function init() {
 			
 		}
@@ -238,6 +258,10 @@ namespace core {
 						return filter_input(INPUT_GET, $name, FILTER_SANITIZE_STRING);
 					case self::INT:
 						return filter_input(INPUT_GET, $name, FILTER_SANITIZE_NUMBER_INT);
+					case self::BOOLEAN:
+						$val = \strtolower(filter_input(INPUT_GET, $name, FILTER_SANITIZE_STRING));
+						if ($val==='true'||$val==='1') return true;
+						return false;
 					case self::FLOAT:
 						return filter_input(INPUT_GET, $name, FILTER_SANITIZE_NUMBER_FLOAT);
 					case self::URL:
@@ -255,6 +279,17 @@ namespace core {
 						return filter_input(file_get_contents('php://input', '', NULL, 0, 10000), $name, FILTER_SANITIZE_URL);
 					case self::JSON_OBJ:
 						return json_decode(file_get_contents('php://input', '', NULL, 0, 30000));
+				}
+			}else if ($connectType===self::COOKIES) {
+				switch($type) {
+					case self::A09_STR:
+						return filter_input(INPUT_COOKIE, $name, FILTER_SANITIZE_STRING);
+					case self::INT:
+						return filter_input(INPUT_COOKIE, $name, FILTER_SANITIZE_NUMBER_INT);
+					case self::FLOAT:
+						return filter_input(INPUT_COOKIE, $name, FILTER_SANITIZE_NUMBER_FLOAT);
+					case self::URL:
+						return filter_input(INPUT_COOKIE, $name, FILTER_SANITIZE_URL);
 				}
 			}
 			//core\Connect::getResource("core.Module.UserData", Connect::STANDART_STR, Connect::POST);

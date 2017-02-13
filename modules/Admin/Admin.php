@@ -42,9 +42,9 @@ class Admin extends core\Module {
 				header('Location: /admin');
 				break;
 			case '/registratePage':
-				$url = filter_input(INPUT_GET, 'url', FILTER_SANITIZE_STRING);
-				$file = filter_input(INPUT_GET, 'file', FILTER_SANITIZE_STRING);
-				$equal = filter_input(INPUT_GET, 'equal', FILTER_SANITIZE_STRING)==='on'?true:false;
+				$url = core\Connect::getResource('url', core\Connect::A09_STR, core\Connect::GET);
+				$file = core\Connect::getResource('file', core\Connect::A09_STR, core\Connect::GET);
+				$equal = core\Connect::getResource('equal', core\Connect::A09_STR, core\Connect::GET);//filter_input(INPUT_GET, 'equal', FILTER_SANITIZE_STRING)==='on'?true:false;
 				if (!file_exists($_SERVER['DOCUMENT_ROOT'].$file)) break;
 				core\PathManager::addEventListener($url, 'Admin', 'pageDispatcher', $equal, $file);
 				header('Location: /admin');
